@@ -40,6 +40,9 @@
 
 ## Remaining validation (requires full build / device)
 
+Follow the canonical procedure in `VALIDATION.md`; record the resolved
+capability profile and the device(s) used.
+
 <Checks that need an Android build tree or a physical device.>
 
 ## Reproduction

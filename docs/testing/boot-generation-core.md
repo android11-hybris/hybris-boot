@@ -79,9 +79,14 @@ Run standalone against the real repository files (no Android tree required):
 
 ## Remaining validation (requires full build / device)
 
-- `mka hybris-boot` and `mka hybris-recovery` in a real Android tree.
-- Unpack the resulting images (e.g. `unpackbootimg`) and confirm kernel,
-  cmdline, offsets, header version and dt/dtb parity with a pre-refactor build.
+Follow the canonical procedure in `VALIDATION.md`. For this change the device
+resolves to the legacy or vendor_boot profile depending on the target; run the
+checks for that profile. In summary:
+
+- `mka hybris-boot` (and `mka hybris-recovery` only if the device has a
+  dedicated recovery partition) in a real Android tree.
+- Unpack the resulting images and confirm kernel, cmdline, offsets, header
+  version and dt/dtb parity with a pre-refactor baseline build.
 - On-device boot smoke test on the reference device (Pixel 5a / barbet):
   reaches the same point (debug shell / `switch_root`) as before.
 

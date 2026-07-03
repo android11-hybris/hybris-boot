@@ -43,8 +43,18 @@ equivalence record, but should still describe how they were tested.
 - **Documented intentional deltas** — the only accepted differences from the
   previous behaviour, each with a justification.
 - **Remaining validation** — checks that require a full Android build tree or a
-  physical device, to be run on a build host / reference device.
+  physical device, to be run on a build host / reference device. Follow the
+  canonical procedure in `VALIDATION.md` and record which capability profile and
+  device were validated.
 - **Reproduction** — commands so a contributor or CI can re-run the checks.
+
+## Canonical validation procedure
+
+`VALIDATION.md` is the project's standard validation procedure for any change
+that affects boot generation (build, unpack/compare, kernel/cmdline/header,
+DTB/DTBO, vendor_boot/init_boot, boot smoke test). It is capability-driven, not
+version-driven. Regression records cite it for their build/device checks, and
+pull requests that touch boot generation should follow it.
 
 ## Template
 
