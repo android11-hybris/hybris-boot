@@ -1,0 +1,33 @@
+# IDEs
+.vscode/
+.idea/
+
+# Build
+out/
+tmp/
+*.img
+*.cpio
+
+# Logs
+*.log
+
+# Patch rejects / backups
+*.orig
+*.rej
+*~
+
+# AI Assistant Personal Files
+.claude/
+.cursor/
+.aider*
+.codex/
+.copilot/
+
+# Local notes
+NOTES.local.md
+TODO.local.md
+AI_CONTEXT.local.md
+
+# OS
+.DS_Store
+Thumbs.db
