@@ -1,90 +1,161 @@
-hybris-boot
-===========
+# hybris-boot
 
 This project enables the building of boot images for Google Android fastboot based devices.
 
-It can be built either in the android build tree as part of the normal kernel/android pre-requisited build or in a Mer SDK as a standalone package
+It can be built either in the Android build tree as part of the normal kernel/Android build or in a Mer SDK as a standalone package.
 
-Android Build
--------------
+---
 
-We need to extend subdir_makefiles in build/core/main.mk to include hybris/Android.mk; that then includes any additional Android.mk files in subdirs
+# Android Build
 
-Note the default boot.img is created by $(INSTALLED_BOOTIMAGE_TARGET) target in build/core/Makefile and that is used for inspiration.
+Extend `subdir_makefiles` in `build/core/main.mk` to include `hybris/Android.mk`, which then includes any additional `Android.mk` files in subdirectories.
 
-Add as a normal make/mka target:
-    $ mka hybris-boot hybris-recovery
+The default `boot.img` is created by `$(INSTALLED_BOOTIMAGE_TARGET)` in `build/core/Makefile` and serves as the reference implementation.
 
-SDK Building
-------------
+Build as normal:
 
-In the SDK you'll need the kernel, module and static busybox packages available
+```bash
+mka hybris-boot hybris-recovery
+```
 
-    $ git clone https://github.com/mer-hybris/hybris-boot
-    $ cd hybris-boot
-    $ make <device>
+---
 
-Operating System Bootstrap
----------------------------
+# SDK Building
 
-The initramfs boots into a Mer derived OS installation by loading first the default Android /data partition and then bind mounting a root filesystem under /data/media/0/.stowaways/sffe. This behaviour is easily modified by editing the ./initramfs/init shell script.
+The SDK requires the kernel, kernel modules, and a static BusyBox package.
 
-Initial RAM FS Debug Console
-----------------------------
+```bash
+git clone https://github.com/mer-hybris/hybris-boot
+cd hybris-boot
+make <device>
+```
 
-With your device booted to fastboot, boot the boot.img in debug mode:
+---
 
-    $ sudo fastboot boot boot.img -c bootmode=debug
+# Operating System Bootstrap
 
-Wait for your host computer to pick up DHCP lease from usb network device:
+The initramfs boots into a Mer-derived operating system by mounting the default Android `/data` partition and bind mounting a Linux root filesystem located under:
 
-    $ telnet 192.168.2.15
-        
-Android 11+ Modernization
-=========================
+```
+/data/media/0/.stowaways/<os>
+```
 
-This repository is also the home of an ongoing modernization effort for
-hybris-boot targeting Android 11 and newer devices.
+This behavior can be customized by modifying the generated init script.
 
-The objective is to preserve the original Mer/Jolla design while extending it
-to support modern Android platform features including:
+---
+
+# Initial RAMFS Debug Console
+
+Boot the image in debug mode:
+
+```bash
+sudo fastboot boot boot.img -c bootmode=debug
+```
+
+Wait for USB networking to initialize, then connect:
+
+```bash
+telnet 192.168.2.15
+```
+
+---
+
+# Android 11+ Modernization
+
+This repository is the home of an ongoing modernization effort for **hybris-boot** targeting Android 11 and newer devices.
+
+The objective is to preserve the original Mer/Jolla architecture while extending it to support modern Android platform features including:
 
 - Android 11+
 - Android 12
 - Android 13+
-- boot header v3/v4
-- vendor_boot
-- dynamic partitions
-- logical partitions
-- Android first-stage init
+- Android 14+
+- Boot Header v3/v4
+- `vendor_boot`
+- Dynamic Partitions
+- Logical Partitions
+- Android First-Stage Init
 - Generic Kernel Image (GKI)
 
-The project is intended to remain distribution-neutral and support operating
-systems such as:
+The project is intended to remain distribution-neutral and support operating systems such as:
 
 - Sailfish OS
 - Droidian
 - Ubuntu Touch
-- other libhybris-based Linux systems
+- LuneOS
+- Other libhybris-based Linux systems
 
-This effort is intended as a continuation of the original work rather than a
-replacement. Original copyright notices, authorship, and project history are
-preserved.
+---
 
-Additional documentation:
+# Project Philosophy
 
-- PROJECT.md
-- ARCHITECTURE.md
-- ROADMAP.md
-- CONTRIBUTING.md
+This project is **not** a rewrite of hybris-boot.
 
+Instead, it is a continuation of the original Mer/Jolla work, extending the existing architecture to support modern Android devices while preserving compatibility with legacy devices whenever practical.
 
-## AI-Assisted Development
+Whenever possible:
 
-This project welcomes AI-assisted development.
+- Preserve the original architecture.
+- Preserve existing functionality.
+- Preserve project history.
+- Preserve original copyright notices.
+- Minimize unnecessary rewrites.
+- Prefer extending existing code over replacing it.
 
-General guidance for AI coding assistants is provided in `AGENTS.md`.
+---
 
-Current project status and ongoing technical work is documented in `AI_CONTEXT.md`.
+# Documentation
 
-These documents are intended to help both human contributors and AI assistants understand the project's goals and current state.
+General project documentation:
+
+- `docs/PROJECT.md`
+- `docs/ROADMAP.md`
+- `docs/CONTRIBUTING.md`
+- `docs/AI-CONTEXT.md`
+- `docs/AGENTS.md`
+
+Engineering documentation:
+
+- `docs/design/ARCHITECTURE.md`
+- `docs/design/ANDROID11_BOOTFLOW.md`
+- `docs/design/VENDOR_BOOT.md`
+- `docs/design/FIRST_STAGE_INIT.md`
+- `docs/design/DYNAMIC_PARTITIONS.md`
+- `docs/design/PIXEL5A.md`
+- `docs/design/RESEARCH.md`
+
+---
+
+# AI-Assisted Development
+
+AI-assisted development is welcome.
+
+Project context and development guidance are provided to help AI coding assistants understand the project's goals, architecture, coding standards, and current technical direction.
+
+These documents are intended to improve collaboration between human contributors and AI assistants while preserving the original design philosophy of hybris-boot.
+
+---
+
+# Current Status
+
+The modernization effort is currently focused on Android 11+ compatibility.
+
+Current areas of development include:
+
+- Android 11/12 build integration
+- Boot Header v3/v4 support
+- `vendor_boot` modernization
+- Android first-stage init compatibility
+- Dynamic partition support
+- Improved debugging infrastructure
+- Google Pixel 5a (barbet) reference implementation
+
+---
+
+# Credits
+
+This repository is based on the original **hybris-boot** project developed by the Mer Project and Jolla contributors.
+
+The Android 11+ modernization effort is intended as a continuation of that work.
+
+All original copyright notices, authorship, and project history are preserved.
