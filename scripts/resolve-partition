@@ -1,0 +1,90 @@
+#!/usr/bin/perl
+#
+# Copyright (C) 2014 Jolla Oy
+# Contact: <david.greaves@jolla.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Frontend-independent partition resolver.
+#
+# Given a mount point and one or more fstab files, print the canonical block
+# device that backs that mount point.
+#
+# Background (Android 11+):
+#   Modern LineageOS fstab files commonly describe the same partition under
+#   several equivalent paths, e.g.
+#       /dev/block/bootdevice/by-name/userdata
+#       /dev/block/by-name/userdata
+#   which are both symlinks to the same partition. The legacy discovery logic
+#   used `sort -u`, which only removes byte-identical strings, so these
+#   equivalents survived as two entries and tripped the "one and only one"
+#   check.
+#
+#   This resolver instead groups candidates by partition *identity* and emits a
+#   single canonical entry per real partition. Two /dev paths are the same
+#   partition when they share the same "by-name/<name>". Raw device nodes (e.g.
+#   /dev/mmcblk0p26) are their own identity. This is generic and
+#   capability-driven: it keys on how the fstab describes the device, not on any
+#   device name or Android version.
+#
+# Representative selection:
+#   Among equivalent paths the most specific (longest) path is kept, so a
+#   device-qualified form such as .../bootdevice/by-name/<name> (which
+#   fixup-mountpoints matches) is preferred over a bare .../by-name/<name>
+#   symlink.
+#
+# Usage:
+#   resolve-partition <mountpoint> [fstab ...]
+#
+# Prints one canonical /dev path per distinct partition (normally exactly one;
+# nothing if the mount point is absent, e.g. /boot on recovery-as-boot devices).
+
+use strict;
+use warnings;
+
+my $mnt = shift;
+die "usage: resolve-partition <mountpoint> [fstab ...]\n" unless defined $mnt;
+
+# No fstab files -> nothing to resolve (the caller reports the diagnostic).
+exit 0 unless @ARGV;
+
+my @candidates;
+while (my $line = <>) {
+    next if $line =~ /^\s*#/;                        # skip comments
+    next unless $line =~ /^\Q$mnt\E\s|\s\Q$mnt\E\s/; # line references this mount point
+    for my $tok (split ' ', $line) {
+        push @candidates, $tok if $tok =~ m{^/dev};
+    }
+}
+
+# Remove byte-identical duplicates, preserving encounter order.
+my %seen;
+@candidates = grep { !$seen{$_}++ } @candidates;
+
+# Group by canonical partition identity, keeping the most specific path.
+my %repr;
+for my $path (@candidates) {
+    my $id = ($path =~ m{/by-name/([^/]+)/?$}) ? "by-name:$1" : "path:$path";
+    if (!exists $repr{$id}) {
+        $repr{$id} = $path;
+    } else {
+        my $cur = $repr{$id};
+        if (length($path) > length($cur)
+            || (length($path) == length($cur) && $path lt $cur)) {
+            $repr{$id} = $path;
+        }
+    }
+}
+
+# One canonical path per distinct partition, deterministically ordered.
+print "$_\n" for sort values %repr;
