@@ -119,6 +119,7 @@ Engineering documentation:
 - `docs/design/ARCHITECTURE.md`
 - `docs/design/ANDROID11_BOOTFLOW.md`
 - `docs/design/VENDOR_BOOT.md`
+- `docs/design/BOOT_IMAGE_SELECTION.md`
 - `docs/design/FIRST_STAGE_INIT.md`
 - `docs/design/DYNAMIC_PARTITIONS.md`
 - `docs/design/PIXEL5A.md`

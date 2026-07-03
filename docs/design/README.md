@@ -19,6 +19,9 @@ ARCHITECTURE.md
 VENDOR_BOOT.md
     vendor_boot image layout and design.
 
+BOOT_IMAGE_SELECTION.md
+    Detecting the device boot architecture and selecting the correct image set.
+
 FIRST_STAGE_INIT.md
     Android first-stage init compatibility.
 
