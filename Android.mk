@@ -18,6 +18,13 @@
 LOCAL_PATH:= $(call my-dir)
 HYBRIS_PATH:=$(LOCAL_PATH)
 
+# Frontend-independent boot generation core (see docs/design/BOOT_GENERATION.md).
+# Android.mk is only a frontend that computes inputs and calls these helpers,
+# so the same logic can be reused by a future Soong/Android.bp frontend.
+HYBRIS_GEN_INIT    := $(HYBRIS_PATH)/scripts/generate-init.sh
+HYBRIS_GEN_RAMDISK := $(HYBRIS_PATH)/scripts/generate-ramdisk.sh
+HYBRIS_GEN_BOOTIMG := $(HYBRIS_PATH)/scripts/generate-bootimg.sh
+
 # We use the commandline and kernel configuration varables from
 # build/core/Makefile to be consistent. Support for boot/recovery
 # image specific kernel COMMANDLINE vars is provided but whether it
@@ -148,33 +155,15 @@ BOOT_RAMDISK_INIT_SRC := $(LOCAL_PATH)/init-script
 BOOT_RAMDISK_INIT := $(BOOT_INTERMEDIATE)/init
 BOOT_RAMDISK_FILES := $(shell find $(BOOT_RAMDISK_SRC) -type f) $(BOOT_RAMDISK_INIT)
 
-$(LOCAL_BUILT_MODULE): $(INSTALLED_KERNEL_TARGET) $(BOOT_RAMDISK) $(MKBOOTIMG) $(BOOTIMAGE_EXTRA_DEPS)
+$(LOCAL_BUILT_MODULE): $(INSTALLED_KERNEL_TARGET) $(BOOT_RAMDISK) $(MKBOOTIMG) $(BOOTIMAGE_EXTRA_DEPS) $(HYBRIS_GEN_BOOTIMG)
 	@echo "Making hybris-boot.img in $(dir $@) using $(INSTALLED_KERNEL_TARGET) $(BOOT_RAMDISK)"
-	@mkdir -p $(dir $@)
-	@rm -rf $@
-	$(hide)$(MKBOOTIMG) --ramdisk $(BOOT_RAMDISK) $(HYBRIS_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) --output $@
+	$(hide)$(HYBRIS_GEN_BOOTIMG) $(MKBOOTIMG) $@ --ramdisk $(BOOT_RAMDISK) $(HYBRIS_BOOTIMAGE_ARGS) $(BOARD_MKBOOTIMG_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS)
 
-$(BOOT_RAMDISK): $(BOOT_RAMDISK_FILES) $(BB_STATIC)
-	@echo "Making initramfs : $@"
-	@rm -rf $(BOOT_INTERMEDIATE)/initramfs
-	@mkdir -p $(BOOT_INTERMEDIATE)/initramfs
-	@cp -a $(BOOT_RAMDISK_SRC)/*  $(BOOT_INTERMEDIATE)/initramfs
-# Deliberately do an mv to force rebuild of init every time since it's
-# really hard to depend on things which may affect init.
-	@mv $(BOOT_RAMDISK_INIT) $(BOOT_INTERMEDIATE)/initramfs/init
-	@cp $(BB_STATIC) $(BOOT_INTERMEDIATE)/initramfs/bin/
-	$(if $(filter true,$(BOARD_RAMDISK_USE_LZ4)), \
-		@(cd $(BOOT_INTERMEDIATE)/initramfs && find . -printf '%P\n' | cpio -H newc -o ) | $(LZ4) -l -12 --favor-decSpeed > $@,\
-		@(cd $(BOOT_INTERMEDIATE)/initramfs && find . -printf '%P\n' | cpio -H newc -o ) | gzip -9 > $@)
+$(BOOT_RAMDISK): $(BOOT_RAMDISK_FILES) $(BB_STATIC) $(HYBRIS_GEN_RAMDISK)
+	@$(HYBRIS_GEN_RAMDISK) $(BOOT_RAMDISK_SRC) $(BOOT_RAMDISK_INIT) $(BB_STATIC) $@ $(BOOT_INTERMEDIATE)/initramfs $(if $(filter true,$(BOARD_RAMDISK_USE_LZ4)),lz4,gzip) $(LZ4)
 
-$(BOOT_RAMDISK_INIT): $(BOOT_RAMDISK_INIT_SRC) $(ALL_PREBUILT)
-	@mkdir -p $(dir $@)
-	@sed -e 's %DATA_PART% $(HYBRIS_DATA_PART) g' \
-	  -e 's %BOOTLOGO% $(HYBRIS_BOOTLOGO) g' \
-	  -e 's %DEFAULT_OS% $(HYBRIS_B_DEFAULT_OS) g' \
-	  -e 's %ALWAYSDEBUG% $(HYBRIS_B_ALWAYSDEBUG) g' $(BOOT_RAMDISK_INIT_SRC) > $@
-	$(HYBRIS_FIXUP_MOUNTS) "$(TARGET_DEVICE)" "$@"
-	@chmod +x $@
+$(BOOT_RAMDISK_INIT): $(BOOT_RAMDISK_INIT_SRC) $(HYBRIS_GEN_INIT) $(ALL_PREBUILT)
+	@$(HYBRIS_GEN_INIT) $(BOOT_RAMDISK_INIT_SRC) $@ "$(HYBRIS_DATA_PART)" "$(HYBRIS_BOOTLOGO)" "$(HYBRIS_B_DEFAULT_OS)" "$(HYBRIS_B_ALWAYSDEBUG)" "$(HYBRIS_FIXUP_MOUNTS)" "$(TARGET_DEVICE)"
 
 ################################################################
 
@@ -193,31 +182,15 @@ RECOVERY_RAMDISK_INIT_SRC := $(LOCAL_PATH)/init-script
 RECOVERY_RAMDISK_INIT := $(RECOVERY_INTERMEDIATE)/init
 RECOVERY_RAMDISK_FILES := $(shell find $(RECOVERY_RAMDISK_SRC) -type f) $(RECOVERY_RAMDISK_INIT)
 
-$(LOCAL_BUILT_MODULE): $(INSTALLED_KERNEL_TARGET) $(RECOVERY_RAMDISK) $(MKBOOTIMG) $(BOOTIMAGE_EXTRA_DEPS)
+$(LOCAL_BUILT_MODULE): $(INSTALLED_KERNEL_TARGET) $(RECOVERY_RAMDISK) $(MKBOOTIMG) $(BOOTIMAGE_EXTRA_DEPS) $(HYBRIS_GEN_BOOTIMG)
 	@echo "Making hybris-recovery.img in $(dir $@) using $(INSTALLED_KERNEL_TARGET) $(RECOVERY_RAMDISK)"
-	@mkdir -p $(dir $@)
-	@rm -rf $@
-	$(hide)$(MKBOOTIMG) --ramdisk $(RECOVERY_RAMDISK) $(HYBRIS_RECOVERYIMAGE_ARGS) $(BOARD_MKRECOVERYIMG_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS) --output $@
+	$(hide)$(HYBRIS_GEN_BOOTIMG) $(MKBOOTIMG) $@ --ramdisk $(RECOVERY_RAMDISK) $(HYBRIS_RECOVERYIMAGE_ARGS) $(BOARD_MKRECOVERYIMG_ARGS) $(INTERNAL_MKBOOTIMG_VERSION_ARGS)
 
-$(RECOVERY_RAMDISK): $(RECOVERY_RAMDISK_FILES) $(BB_STATIC)
-	@echo "Making initramfs : $@"
-	@rm -rf $(RECOVERY_INTERMEDIATE)/initramfs
-	@mkdir -p $(RECOVERY_INTERMEDIATE)/initramfs
-	@cp -a $(RECOVERY_RAMDISK_SRC)/*  $(RECOVERY_INTERMEDIATE)/initramfs
-	@mv $(RECOVERY_RAMDISK_INIT) $(RECOVERY_INTERMEDIATE)/initramfs/init
-	@cp $(BB_STATIC) $(RECOVERY_INTERMEDIATE)/initramfs/bin/
-	$(if $(filter true,$(BOARD_RAMDISK_USE_LZ4)), \
-		@(cd $(RECOVERY_INTERMEDIATE)/initramfs && find . -printf '%P\n' | cpio -H newc -o ) | $(LZ4) -l -12 --favor-decSpeed > $@,\
-		@(cd $(RECOVERY_INTERMEDIATE)/initramfs && find . -printf '%P\n' | cpio -H newc -o ) | gzip -9 > $@)
+$(RECOVERY_RAMDISK): $(RECOVERY_RAMDISK_FILES) $(BB_STATIC) $(HYBRIS_GEN_RAMDISK)
+	@$(HYBRIS_GEN_RAMDISK) $(RECOVERY_RAMDISK_SRC) $(RECOVERY_RAMDISK_INIT) $(BB_STATIC) $@ $(RECOVERY_INTERMEDIATE)/initramfs $(if $(filter true,$(BOARD_RAMDISK_USE_LZ4)),lz4,gzip) $(LZ4)
 
-$(RECOVERY_RAMDISK_INIT): $(RECOVERY_RAMDISK_INIT_SRC) $(ALL_PREBUILT)
-	@mkdir -p $(dir $@)
-	@sed -e 's %DATA_PART% $(HYBRIS_DATA_PART) g' \
-	  -e 's %BOOTLOGO% $(HYBRIS_BOOTLOGO) g' \
-	  -e 's %DEFAULT_OS% $(HYBRIS_R_DEFAULT_OS) g' \
-	  -e 's %ALWAYSDEBUG% $(HYBRIS_R_ALWAYSDEBUG) g' $(RECOVERY_RAMDISK_INIT_SRC) > $@
-	$(HYBRIS_FIXUP_MOUNTS) "$(TARGET_DEVICE)" "$@"
-	@chmod +x $@
+$(RECOVERY_RAMDISK_INIT): $(RECOVERY_RAMDISK_INIT_SRC) $(HYBRIS_GEN_INIT) $(ALL_PREBUILT)
+	@$(HYBRIS_GEN_INIT) $(RECOVERY_RAMDISK_INIT_SRC) $@ "$(HYBRIS_DATA_PART)" "$(HYBRIS_BOOTLOGO)" "$(HYBRIS_R_DEFAULT_OS)" "$(HYBRIS_R_ALWAYSDEBUG)" "$(HYBRIS_FIXUP_MOUNTS)" "$(TARGET_DEVICE)"
 
 
 ################################################################
