@@ -63,16 +63,26 @@ ifeq "$(HYBRIS_FSTABS)" ""
 HYBRIS_FSTABS := $(shell find device/*/*/$(TARGET_DEVICE) -name *fstab* | grep -v goldfish)
 endif
 
-# Get the unique /dev field(s) from the line(s) containing the fs mount point
-# Note the perl one-liner uses double-$ as per Makefile syntax
-HYBRIS_BOOT_PART := $(shell /usr/bin/perl -w -e '$$fs=shift; if ($$ARGV[0]) { while (<>) { next unless /^$$fs\s|\s$$fs\s/;for (split) {next unless m(^/dev); print "$$_\n"; }}} else { print "ERROR: *fstab* not found\n";}' /boot $(HYBRIS_FSTABS) | sort -u)
-HYBRIS_DATA_PART := $(shell /usr/bin/perl -w -e '$$fs=shift; if ($$ARGV[0]) { while (<>) { next unless /^$$fs\s|\s$$fs\s/;for (split) {next unless m(^/dev); print "$$_\n"; }}} else { print "ERROR: *fstab* not found\n";}' /data $(HYBRIS_FSTABS) | sort -u)
+# Resolve the canonical block device backing /boot and /data from the device
+# fstab(s). Modern (Android 11+) LineageOS fstabs commonly list the same
+# partition under several equivalent symlink paths (e.g.
+# /dev/block/bootdevice/by-name/userdata and /dev/block/by-name/userdata); the
+# resolver collapses such equivalents to a single canonical entry instead of
+# treating them as distinct devices. Legacy single-path fstabs are unchanged.
+# See scripts/resolve-partition.
+HYBRIS_RESOLVE_PART := $(HYBRIS_PATH)/scripts/resolve-partition
+
+HYBRIS_BOOT_PART := $(shell $(HYBRIS_RESOLVE_PART) /boot $(HYBRIS_FSTABS))
+HYBRIS_DATA_PART := $(shell $(HYBRIS_RESOLVE_PART) /data $(HYBRIS_FSTABS))
 
 $(warning ********************* /boot appears to live on $(HYBRIS_BOOT_PART))
 $(warning ********************* /data appears to live on $(HYBRIS_DATA_PART))
 
+ifeq ($(strip $(HYBRIS_DATA_PART)),)
+$(error Could not determine HYBRIS_DATA_PART: no /data entry found in device fstab(s): [$(HYBRIS_FSTABS)])
+endif
 ifneq ($(words $(HYBRIS_DATA_PART)),1)
-$(error There should be a one and only one device entry for HYBRIS_DATA_PART)
+$(error HYBRIS_DATA_PART resolved to multiple distinct partitions ($(HYBRIS_DATA_PART)); check the device fstab(s))
 endif
 
 BB_STATIC := $(PRODUCT_OUT)/utilities/busybox
