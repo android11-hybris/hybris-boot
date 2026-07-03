@@ -18,13 +18,34 @@ This is a **generic build-system capability**, not a per-device workaround. The
 Pixel 5a (barbet) is the reference implementation, but nothing in the selection
 logic may key off a device codename.
 
-## Boot architectures to support
+## Detected capabilities
 
-| Architecture | Boot header | Recovery | Vendor ramdisk / first-stage | Notes |
-|---|---|---|---|---|
-| Legacy | v0–v2 | dedicated recovery partition | in boot ramdisk | current hybris-boot assumption |
-| Android 11/12 GKI | v3 | recovery-as-boot | `vendor_boot.img` (DTB, first_stage_ramdisk, modules) | **barbet** |
-| Android 13+ GKI | v4 | recovery-as-boot | `vendor_boot.img` + generic ramdisk in `init_boot.img` | |
+Selection is keyed on **capabilities**, not on Android version numbers or device
+names. The frontend detects a set of independent features and resolves a profile
+from their combination:
+
+- boot header version (a value, e.g. 2 / 3 / 4);
+- `vendor_boot` present;
+- `init_boot` present;
+- recovery-as-boot vs a dedicated recovery partition;
+- GKI;
+- DTB location / DTBO handling.
+
+Because these are orthogonal capabilities rather than version buckets, new
+hardware combinations are supported automatically — the frontend does not need
+to recognise the platform, only its capabilities.
+
+## Capability combinations (illustrative)
+
+The rows below are common combinations. **The Android version column is context
+only — it is never a decision input.** Selection is driven purely by the
+capability columns.
+
+| Capabilities | (context: Android) | Recovery | Vendor ramdisk / first-stage |
+|---|---|---|---|
+| header v0–v2, no vendor_boot | legacy | dedicated recovery partition | in boot ramdisk |
+| header v3, vendor_boot, recovery-as-boot | 11/12 — **barbet** | recovery-as-boot | `vendor_boot.img` (DTB, first_stage_ramdisk, modules) |
+| header v4, vendor_boot, init_boot, recovery-as-boot | 13+ | recovery-as-boot | `vendor_boot.img` + generic ramdisk in `init_boot.img` |
 
 ## Reference device: Pixel 5a (barbet)
 
@@ -54,25 +75,40 @@ implementation will derive a "boot profile" from them. Candidate inputs
 - GKI (e.g. `BOARD_USES_GENERIC_KERNEL_IMAGE`);
 - `init_boot` presence (Android 13+).
 
-## Selection logic (profile → outputs)
+## Selection logic (capabilities → profile → outputs)
 
-| Detected profile | Images produced | mkbootimg behaviour |
+| Capabilities | Images produced | mkbootimg behaviour |
 |---|---|---|
-| Legacy | `hybris-boot` + `hybris-recovery` | header ≤ 2 args (current) |
-| Recovery-as-boot, header v3 | `hybris-boot` (+ `vendor_boot`); **no** separate recovery image | header v3, split ramdisk, DTB in vendor_boot |
-| Recovery-as-boot, header v4 (A13+) | `hybris-boot` / `init_boot` (+ `vendor_boot`) | header v4 |
+| header ≤ 2, no vendor_boot, recovery partition | `hybris-boot` + `hybris-recovery` | header ≤ 2 args (current) |
+| header v3, vendor_boot, recovery-as-boot | `hybris-boot` (+ `vendor_boot`); **no** separate recovery image | header v3, split ramdisk, DTB in vendor_boot |
+| header v4, vendor_boot, init_boot, recovery-as-boot | `hybris-boot` / `init_boot` (+ `vendor_boot`) | header v4 |
+
+## Frontend / core boundary
+
+- The **frontend** detects capabilities from board configuration and **resolves
+  a profile** (a plain description of what to build and how).
+- The **generation core is platform-unaware**: it receives the resolved profile
+  and consumes it. It never inspects Android versions, device names, or board
+  variables. See `BOOT_GENERATION.md`.
+- A future Soong frontend performs the same capability detection and hands the
+  same kind of profile to the same core.
+
+This is the applied form of the project's core design principle (see
+`ARCHITECTURE.md`): **capability-driven, never version- or device-driven.**
 
 ## Design principles
 
-- **Detection lives in the build frontend**, and feeds the frontend-independent
-  boot generation core (see `BOOT_GENERATION.md`, added by the build-system
-  refactor). A future
-  Soong frontend performs the same detection and calls the same core.
-- **Generic, board-driven** — no `ifeq TARGET_DEVICE = barbet` conditionals.
-- **Legacy preserved** — devices detected as legacy build exactly as before.
+- **Capability-driven** — profiles are resolved from detected features, not from
+  Android version numbers or device codenames. No `ifeq TARGET_DEVICE = barbet`
+  conditionals anywhere.
+- **Platform-unaware core** — the generation core only sees the resolved profile.
+- **Legacy preserved** — devices whose capabilities match the legacy profile
+  build exactly as before.
 - **One entry point** — `mka hybris-boot` yields the correct image set; the
   separate recovery image is emitted only when the device actually has a
   recovery partition.
+- **Forward-compatible** — future devices (e.g. Pixel 9 Pro Fold) are supported
+  by detecting their capabilities, with no new device-specific logic.
 
 ## Implementation tracking
 
